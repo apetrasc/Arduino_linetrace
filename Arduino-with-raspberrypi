@@ -1,0 +1,159 @@
+#include <Servo.h>
+#define lightrule 500 //basis for judgement 
+#define L01 50
+#define R01 1
+#define L10 1
+#define R10 50
+#define L11 100
+#define R11 100  
+int distance = 0;
+int s[9]; // size of vector "s"
+long cmd = 0;
+int val=0;
+String line;
+int line_len;
+const int sensorPin1 = A6;  //A6 & A2 for destination detection
+const int sensorPin2 = A2;
+const int sensorPin3 = A1; //for position detection
+const int sensorPin4 = 6; //D6 for distance detection
+const int sensorPin5 = 7; //later line detection?
+const int SV_PIN =4;
+Servo myservo;
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  pinMode(3,OUTPUT); //D3cable connect(for left motor)
+  pinMode(5,OUTPUT); //D5cable connect(for right motor)
+  pinMode(4,OUTPUT); //
+  myservo.attach(SV_PIN, 500, 2400);
+
+}
+void move20micros(int i,int j){
+  analogWrite(3,i);
+  delay(10);
+  analogWrite(5,j);
+  delay(10);
+  }
+void trace(int *s){  //caution! argument "*s"
+  if(s[0]==0){
+    autostop();
+    }
+  else if(s[0]==1){
+    //Serial.println("ONDUTY");
+    if(s[1]<lightrule && s[2]<lightrule){
+      if(s[4]>0 && s[5]>0){
+        move20micros(L11,R11);
+        //Serial.println("FORWARD");
+        }
+      else if(s[4]>0 && s[5]==0){
+        move20micros(L10,R10);
+        //Serial.println("LEFT");
+        }
+      else if(s[4]==0 && s[5]>0){
+        move20micros(L01,R01);
+        //Serial.println("RIGHT");
+        }
+      else{
+        //Serial.println("PAUSE");
+        autostop();
+        }
+      }
+    else if(s[1]>lightrule && s[2]<lightrule){
+      //Serial.println("Destination");
+      autostop_destination();
+      delay(20);
+      }
+    else if(s[1]<lightrule && s[2]>lightrule){
+      //Serial.println("STARTPOINT");
+      delay(20);
+      }
+    else{
+      //Serial.println("UNKNOWN");
+      delay(20);
+      }
+  }
+  else{
+    //Serial.println("Invalidcmd");
+    delay(20);
+  }
+}
+void autostop(){
+  digitalWrite(3,LOW);
+  delay(10);
+  digitalWrite(5,LOW);
+  delay(10);
+}
+void autostop_destination(){ // needs modifing (using cam servo)
+  digitalWrite(3,LOW);
+  delay(20);
+  digitalWrite(5,LOW);
+  delay(20);
+  Serial.print("and");
+  if(s[6]==8){
+    myservo.write(90);
+    }
+  else if(s[6]==9){
+    move20micros(L11,R11);
+  }else{
+    delay(20);
+    }
+}
+int distancecalc(int val){
+  double voltage=5.0/1023 * val;
+  int dis = 265.49 * pow(voltage,-1.2091);
+  if(dis<0){
+    return 0;
+    }
+  else if(dis>1000){
+    return 1000;
+    }
+  else{
+    return dis;
+    }
+}
+void Serialstatus(int i,int j,int k, int l,int m){
+  Serial.print("cmd = ");
+  Serial.print(i);
+  Serial.print(" ,Left;");
+  Serial.print(j);
+  Serial.print(" ,Right;");
+  Serial.print(k);
+  Serial.print(" ,Distance;");
+  Serial.print(l);
+  Serial.print(" ,remotecmd;");
+  Serial.println(m);
+}
+void loop() {
+  if (Serial.available() > 0){
+    delay(20);
+    line = Serial.readStringUntil('\n');
+    line_len =line.length();
+    if(line_len>0){
+    cmd = line.toInt();
+    }
+    }
+  int temp = cmd;
+  if(temp<5){
+    s[0]=temp;
+  }else if(5<temp && temp <10){
+    s[6]=temp;
+  }
+  else if(temp>10 && temp < 100){
+      s[7]=temp;
+  }else{
+    s[8]=temp;
+    }
+  s[1]= analogRead(sensorPin1);
+  s[2]= analogRead(sensorPin2);
+  val = analogRead(sensorPin3);
+  s[3]= distancecalc(val);
+  s[4]= digitalRead(sensorPin4);
+  s[5]= digitalRead(sensorPin5);
+  trace(s);
+  //Serial.print("cmd=");
+  //Serial.print(s[0]);
+  //Serial.print(" ,rmt=");
+  //Serial.println(s[6]);
+  //Serialstatus(s[0],s[1],s[2],s[3],s[6]);
+  delay(1000);
+}
